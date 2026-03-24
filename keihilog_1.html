@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#111318">
+<title>経費ログ</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+:root {
+  --bg:       #111318;
+  --card:     #191c24;
+  --card2:    #1f222d;
+  --line:     #272b38;
+  --line2:    #32374a;
+  --hi:       #4ade80;      /* green accent */
+  --hi2:      #facc15;      /* yellow accent */
+  --hi3:      #60a5fa;      /* blue accent */
+  --red:      #f87171;
+  --txt:      #e8eaf2;
+  --txt2:     #8890aa;
+  --txt3:     #444d66;
+  --r:        14px;
+  --r2:       10px;
+  --mono:     'JetBrains Mono', monospace;
+  --sans:     'Outfit', sans-serif;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bot: env(safe-area-inset-bottom, 0px);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html { height: 100%; background: var(--bg); }
+body {
+  height: 100%; min-height: 100svh;
+  font-family: var(--sans);
+  color: var(--txt);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* ── SCREENS ── */
+#app { position: relative; height: 100svh; overflow: hidden; }
+.screen {
+  position: absolute; inset: 0;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  transition: transform .3s cubic-bezier(.4,0,.2,1), opacity .3s;
+}
+.screen.slide-out   { transform: translateX(-30%); opacity: 0; pointer-events: none; }
+.screen.slide-right { transform: translateX(100%);  opacity: 0; pointer-events: none; }
+
+/* ═══════════════════════════════════
+   CALENDAR SCREEN
+═══════════════════════════════════ */
+#cal-screen { display: block; }
+
+.cal-top {
+  position: sticky; top: 0; z-index: 10;
+  padding: calc(var(--safe-top) + 16px) 18px 10px;
+  background: var(--bg);
+}
+
+/* Month summary hero */
+.month-hero {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  padding: 20px 18px 16px;
+  position: relative; overflow: hidden;
+  margin-bottom: 14px;
+}
+.month-hero::after {
+  content: '';
+  position: absolute; top: -30px; right: -30px;
+  width: 110px; height: 110px;
+  background: radial-gradient(circle, rgba(74,222,128,.14) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.month-nav {
+  display: flex; align-items: center; margin-bottom: 10px;
+}
+.m-nav-btn {
+  background: var(--card2); border: 1px solid var(--line);
+  color: var(--txt2); border-radius: 8px;
+  width: 36px; height: 36px; font-size: 18px; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: background .12s;
+}
+.m-nav-btn:active { background: var(--line2); transform: scale(.93); }
+.m-nav-label {
+  flex: 1; text-align: center;
+  font-size: 15px; font-weight: 600; color: var(--txt2);
+}
+.month-total-lbl { font-size: 11px; color: var(--txt3); font-weight: 500; text-transform: uppercase; letter-spacing: .6px; margin-bottom: 4px; }
+.month-total-num {
+  font-family: var(--mono); font-size: 40px; font-weight: 600;
+  color: var(--hi); letter-spacing: -1px; line-height: 1;
+}
+.month-total-num .yen { font-size: 22px; margin-right: 2px; }
+
+/* Calendar grid */
+.cal-body { padding: 0 18px 12px; }
+.wday-row {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+}
+.wday {
+  text-align: center; font-size: 11px; color: var(--txt3);
+  font-weight: 600; padding: 4px 0; letter-spacing: .3px;
+}
+.wday:first-child { color: rgba(248,113,113,.7); }
+.wday:last-child  { color: rgba(96,165,250,.7); }
+
+.day-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px;
+}
+.day-cell {
+  aspect-ratio: 1;
+  border-radius: 9px;
+  background: var(--card);
+  border: 1px solid transparent;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  cursor: pointer; overflow: hidden;
+  transition: transform .1s, background .15s;
+  padding: 2px 1px;
+}
+.day-cell:active { transform: scale(.9); }
+.day-cell.empty { background: transparent; pointer-events: none; border-color: transparent; }
+.day-cell.is-today { border-color: var(--hi); background: rgba(74,222,128,.07); }
+.day-cell.has-data { background: var(--card2); }
+.day-cell.is-sun .day-num { color: var(--red); }
+.day-cell.is-sat .day-num { color: var(--hi3); }
+.day-cell.is-today .day-num { color: var(--hi); font-weight: 700; }
+.day-num { font-size: 13px; font-weight: 500; line-height: 1; }
+.day-amt {
+  font-family: var(--mono); font-size: 8.5px; font-weight: 600;
+  color: var(--hi); margin-top: 2px; white-space: nowrap;
+  max-width: 100%; overflow: hidden; text-overflow: clip;
+}
+
+/* CSV button at bottom */
+.cal-footer {
+  padding: 0 18px calc(var(--safe-bot) + 16px);
+}
+.csv-btn {
+  width: 100%; background: var(--card); border: 1px solid var(--line);
+  color: var(--txt2); border-radius: var(--r2); padding: 13px;
+  font-family: var(--sans); font-size: 13px; font-weight: 500;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: background .15s;
+}
+.csv-btn:active { background: var(--card2); }
+
+/* ═══════════════════════════════════
+   ENTRY SCREEN
+═══════════════════════════════════ */
+#entry-screen { background: var(--bg); }
+
+.entry-header {
+  position: sticky; top: 0; z-index: 20;
+  background: rgba(17,19,24,.9);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--line);
+  padding: calc(var(--safe-top) + 10px) 16px 10px;
+  display: flex; align-items: center; gap: 10px;
+}
+.back-btn {
+  background: var(--card2); border: 1px solid var(--line);
+  color: var(--txt); border-radius: 9px; padding: 8px 14px;
+  font-family: var(--sans); font-size: 14px; font-weight: 500;
+  cursor: pointer; display: flex; align-items: center; gap: 4px;
+  transition: background .12s;
+}
+.back-btn:active { background: var(--line2); }
+.entry-h-title { flex: 1; font-size: 16px; font-weight: 700; text-align: center; }
+.entry-h-right { width: 72px; }/* spacer */
+
+/* Day strip */
+.day-strip {
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
+  padding: 12px 16px;
+  display: flex; align-items: center; gap: 8px;
+}
+.day-quick-btn {
+  background: var(--card2); border: 1px solid var(--line);
+  color: var(--txt2); border-radius: 8px; padding: 7px 13px;
+  font-family: var(--sans); font-size: 13px; font-weight: 600;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  transition: background .12s, border-color .12s;
+}
+.day-quick-btn.active { background: rgba(74,222,128,.12); border-color: var(--hi); color: var(--hi); }
+.day-quick-btn:active { transform: scale(.93); }
+.date-input-wrap { flex: 1; }
+.date-input {
+  width: 100%; background: var(--card2); border: 1px solid var(--line);
+  color: var(--txt); border-radius: 8px; padding: 7px 10px;
+  font-family: var(--sans); font-size: 14px;
+}
+.date-input:focus { outline: none; border-color: var(--hi3); }
+
+/* Day total bar */
+.day-total-bar {
+  background: linear-gradient(135deg, #13201a 0%, #14182a 100%);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 16px;
+  display: flex; align-items: flex-end; justify-content: space-between;
+}
+.day-total-lbl { font-size: 11px; color: var(--txt3); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; }
+.day-total-num {
+  font-family: var(--mono); font-size: 34px; font-weight: 600;
+  color: var(--hi); line-height: 1;
+}
+.day-total-num .yen { font-size: 18px; }
+
+/* ── SECTION ── */
+.sec { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.sec-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.sec-lbl { font-size: 11px; color: var(--txt3); font-weight: 600; text-transform: uppercase; letter-spacing: .6px; }
+.sec-action {
+  background: transparent; border: 1px solid var(--line);
+  color: var(--txt3); border-radius: 7px; padding: 4px 9px;
+  font-family: var(--sans); font-size: 11px; font-weight: 600;
+  cursor: pointer; transition: border-color .12s;
+}
+.sec-action.on { border-color: var(--hi2); color: var(--hi2); }
+.sec-action:active { opacity: .7; }
+
+/* Amount display */
+.amt-display {
+  background: var(--card2); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 12px 14px;
+  font-family: var(--mono); font-size: 30px; font-weight: 600;
+  text-align: right; color: var(--txt); min-height: 56px;
+  display: flex; align-items: center; justify-content: flex-end;
+  transition: border-color .2s;
+  margin-bottom: 10px;
+}
+.amt-display.has-val { border-color: rgba(74,222,128,.35); color: var(--hi); }
+
+/* Quick amount chips */
+.chip-row { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+.chip {
+  background: var(--card2); border: 1px solid var(--line);
+  color: var(--hi); border-radius: 20px; padding: 7px 15px;
+  font-family: var(--mono); font-size: 13px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  transition: background .12s, transform .1s;
+}
+.chip:active { transform: scale(.91); background: rgba(74,222,128,.12); }
+.chip.edit-on { border-color: var(--hi2); color: var(--hi2); }
+.chip-add {
+  background: transparent; border: 1px dashed var(--line2);
+  color: var(--txt3); border-radius: 20px; padding: 7px 14px;
+  font-size: 12px; cursor: pointer; font-family: var(--sans);
+}
+.chip-add:active { opacity: .6; }
+
+/* Numpad */
+.numpad {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px;
+}
+.np-btn {
+  background: var(--card2); border: 1px solid var(--line);
+  color: var(--txt); border-radius: 11px; padding: 15px 0;
+  font-family: var(--mono); font-size: 22px; font-weight: 500;
+  cursor: pointer; text-align: center; user-select: none;
+  transition: background .1s, transform .08s;
+  -webkit-user-select: none;
+}
+.np-btn:active { transform: scale(.91); background: var(--card); }
+.np-btn.span2 { grid-column: span 2; }
+.np-btn.del-btn { background: rgba(248,113,113,.1); color: var(--red); border-color: rgba(248,113,113,.25); }
+.np-btn.del-btn:active { background: rgba(248,113,113,.2); }
+
+/* Memo */
+.memo-area {
+  width: 100%; background: var(--card2); border: 1px solid var(--line);
+  color: var(--txt); border-radius: var(--r2); padding: 10px 12px;
+  font-family: var(--sans); font-size: 15px; resize: none;
+  margin-bottom: 9px;
+}
+.memo-area:focus { outline: none; border-color: var(--hi3); }
+.memo-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.memo-chip {
+  background: var(--card2); border: 1px solid var(--line);
+  color: var(--txt2); border-radius: 18px; padding: 6px 13px;
+  font-size: 13px; cursor: pointer; font-family: var(--sans);
+  transition: background .12s, transform .1s;
+}
+.memo-chip:active { transform: scale(.91); background: rgba(96,165,250,.12); border-color: var(--hi3); color: var(--hi3); }
+.memo-chip.edit-on { border-color: var(--hi2); color: var(--hi2); }
+
+/* Pair */
+.pair-tags { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; margin-bottom: 9px; }
+.pair-tag {
+  background: rgba(96,165,250,.12); border: 1px solid rgba(96,165,250,.35);
+  color: var(--hi3); border-radius: 18px; padding: 5px 9px;
+  font-size: 13px; display: flex; align-items: center; gap: 3px;
+  cursor: pointer;
+}
+.pair-tag .x { opacity: .6; font-size: 14px; }
+.pair-row { display: flex; gap: 7px; }
+.pair-input {
+  flex: 1; background: var(--card2); border: 1px solid var(--line);
+  color: var(--txt); border-radius: var(--r2); padding: 9px 12px;
+  font-family: var(--sans); font-size: 15px;
+}
+.pair-input:focus { outline: none; border-color: var(--hi3); }
+.pair-add-btn {
+  background: rgba(96,165,250,.12); border: 1px solid rgba(96,165,250,.35);
+  color: var(--hi3); border-radius: var(--r2); padding: 9px 15px;
+  font-family: var(--sans); font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.pair-add-btn:active { opacity: .7; }
+.suggest-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.suggest-chip {
+  background: var(--card2); border: 1px solid var(--line);
+  color: var(--txt2); border-radius: 14px; padding: 5px 11px;
+  font-size: 12px; cursor: pointer;
+}
+.suggest-chip:active { background: rgba(96,165,250,.1); }
+
+/* Time */
+.time-row { display: flex; gap: 7px; }
+.time-btn {
+  flex: 1; background: var(--card2); border: 1px solid var(--line);
+  color: var(--txt2); border-radius: var(--r2); padding: 11px;
+  font-family: var(--sans); font-size: 14px; font-weight: 600;
+  cursor: pointer; text-align: center;
+  transition: background .12s;
+}
+.time-btn.on { background: rgba(250,204,21,.12); border-color: var(--hi2); color: var(--hi2); }
+.time-btn:active { opacity: .7; }
+
+/* SAVE BUTTON */
+.save-wrap {
+  padding: 14px 16px calc(var(--safe-bot) + 14px);
+  background: var(--bg);
+  position: sticky; bottom: 0;
+  border-top: 1px solid var(--line);
+}
+.save-btn {
+  width: 100%; background: var(--hi); color: #0d1f14;
+  border: none; border-radius: var(--r); padding: 16px;
+  font-family: var(--sans); font-size: 17px; font-weight: 800;
+  cursor: pointer; letter-spacing: .3px;
+  transition: transform .1s, opacity .1s;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.save-btn:active { transform: scale(.97); opacity: .9; }
+
+/* Entries */
+.entry-list-lbl {
+  font-size: 11px; color: var(--txt3); font-weight: 600;
+  text-transform: uppercase; letter-spacing: .6px;
+  padding: 12px 16px 6px;
+}
+.entry-cards { padding: 0 16px 10px; display: flex; flex-direction: column; gap: 7px; }
+.e-card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r2); padding: 11px 13px;
+  display: flex; align-items: flex-start; gap: 8px;
+}
+.e-card-body { flex: 1; min-width: 0; }
+.e-card-amt { font-family: var(--mono); font-size: 17px; font-weight: 600; color: var(--hi); }
+.e-card-meta { font-size: 11px; color: var(--txt3); margin-top: 3px; }
+.e-card-memo { font-size: 13px; color: var(--txt2); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.e-del {
+  background: transparent; border: none; color: var(--txt3);
+  font-size: 19px; cursor: pointer; padding: 0; line-height: 1;
+  flex-shrink: 0; align-self: center;
+}
+.no-entries { font-size: 13px; color: var(--txt3); padding: 8px 0; text-align: center; }
+
+/* ─── MODAL ─── */
+.modal-bg {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex; align-items: flex-end; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity .25s;
+}
+.modal-bg.open { opacity: 1; pointer-events: all; }
+.modal-sheet {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 20px 20px 0 0; border-bottom: none;
+  width: 100%; max-width: 480px;
+  padding: 18px 18px calc(var(--safe-bot) + 18px);
+  transform: translateY(100%);
+  transition: transform .28s cubic-bezier(.4,0,.2,1);
+}
+.modal-bg.open .modal-sheet { transform: translateY(0); }
+.modal-handle { width: 34px; height: 4px; background: var(--line2); border-radius: 2px; margin: 0 auto 16px; }
+.modal-title { font-size: 16px; font-weight: 700; margin-bottom: 14px; }
+.modal-in {
+  width: 100%; background: var(--card2); border: 1px solid var(--line);
+  color: var(--txt); border-radius: 10px; padding: 12px 14px;
+  font-family: var(--sans); font-size: 16px; margin-bottom: 12px;
+}
+.modal-in:focus { outline: none; border-color: var(--hi3); }
+.modal-actions { display: flex; gap: 8px; }
+.m-btn {
+  flex: 1; border: none; border-radius: 10px; padding: 13px;
+  font-family: var(--sans); font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.m-btn.cancel { background: var(--card2); color: var(--txt2); }
+.m-btn.ok     { background: var(--hi); color: #0d1f14; }
+.m-btn.danger { background: rgba(248,113,113,.15); color: var(--red); flex: 0 0 auto; padding: 13px 14px; }
+
+/* ─── TOAST ─── */
+.toast {
+  position: fixed; bottom: calc(var(--safe-bot) + 24px);
+  left: 50%; transform: translateX(-50%) translateY(60px);
+  background: var(--hi); color: #0d1f14;
+  font-family: var(--sans); font-weight: 700; font-size: 14px;
+  border-radius: 24px; padding: 10px 22px;
+  z-index: 300; pointer-events: none; white-space: nowrap;
+  transition: transform .28s cubic-bezier(.4,0,.2,1);
+  box-shadow: 0 4px 20px rgba(74,222,128,.3);
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ████ CALENDAR SCREEN ████ -->
+  <div class="screen" id="cal-screen">
+    <div class="cal-top">
+      <!-- Month hero -->
+      <div class="month-hero">
+        <div class="month-nav">
+          <button class="m-nav-btn" onclick="shiftMonth(-1)">‹</button>
+          <div class="m-nav-label" id="month-label"></div>
+          <button class="m-nav-btn" onclick="shiftMonth(1)">›</button>
+        </div>
+        <div class="month-total-lbl">今月の合計</div>
+        <div class="month-total-num" id="month-total"><span class="yen">¥</span>0</div>
+      </div>
+
+      <!-- Weekday headers -->
+      <div class="wday-row">
+        <div class="wday">日</div><div class="wday">月</div><div class="wday">火</div>
+        <div class="wday">水</div><div class="wday">木</div><div class="wday">金</div>
+        <div class="wday">土</div>
+      </div>
+    </div>
+
+    <div class="cal-body">
+      <div class="day-grid" id="day-grid"></div>
+    </div>
+
+    <div class="cal-footer">
+      <button class="csv-btn" onclick="exportCSV()">⬇ 全データをCSVでダウンロード</button>
+    </div>
+  </div>
+
+  <!-- ████ ENTRY SCREEN ████ -->
+  <div class="screen slide-right" id="entry-screen">
+
+    <div class="entry-header">
+      <button class="back-btn" onclick="goBack()">← 戻る</button>
+      <div class="entry-h-title" id="entry-h-date"></div>
+      <div class="entry-h-right"></div>
+    </div>
+
+    <!-- Date strip -->
+    <div class="day-strip">
+      <button class="day-quick-btn" id="btn-today" onclick="setDateQuick('today')">今日</button>
+      <button class="day-quick-btn" id="btn-yesterday" onclick="setDateQuick('yesterday')">昨日</button>
+      <div class="date-input-wrap">
+        <input type="date" class="date-input" id="date-picker" onchange="onDateChange()">
+      </div>
+    </div>
+
+    <!-- Day total -->
+    <div class="day-total-bar">
+      <div>
+        <div class="day-total-lbl">この日の合計</div>
+        <div class="day-total-num" id="day-total"><span class="yen">¥</span>0</div>
+      </div>
+    </div>
+
+    <!-- ── Amount section ── -->
+    <div class="sec">
+      <div class="sec-hd">
+        <span class="sec-lbl">💴 金額</span>
+        <button class="sec-action" id="qa-edit-btn" onclick="toggleQAEdit()">編集</button>
+      </div>
+      <div class="amt-display" id="amt-display">0</div>
+      <div class="chip-row" id="qa-row"></div>
+      <div class="numpad">
+        <button class="np-btn" onclick="np('1')">1</button>
+        <button class="np-btn" onclick="np('2')">2</button>
+        <button class="np-btn" onclick="np('3')">3</button>
+        <button class="np-btn" onclick="np('4')">4</button>
+        <button class="np-btn" onclick="np('5')">5</button>
+        <button class="np-btn" onclick="np('6')">6</button>
+        <button class="np-btn" onclick="np('7')">7</button>
+        <button class="np-btn" onclick="np('8')">8</button>
+        <button class="np-btn" onclick="np('9')">9</button>
+        <button class="np-btn span2" onclick="np('0')">0</button>
+        <button class="np-btn del-btn" onclick="npDel()">⌫</button>
+      </div>
+    </div>
+
+    <!-- ── Memo section ── -->
+    <div class="sec">
+      <div class="sec-hd">
+        <span class="sec-lbl">📝 メモ</span>
+        <button class="sec-action" id="memo-edit-btn" onclick="toggleMemoEdit()">編集</button>
+      </div>
+      <textarea class="memo-area" id="memo-input" rows="2" placeholder="例：昼食、交通費…"></textarea>
+      <div class="memo-chips" id="memo-chips"></div>
+    </div>
+
+    <!-- ── Pair section ── -->
+    <div class="sec">
+      <div class="sec-hd">
+        <span class="sec-lbl">👥 同行者</span>
+        <span style="font-size:11px;color:var(--txt3);">未選択＝単独</span>
+      </div>
+      <div class="pair-tags" id="pair-tags"></div>
+      <div class="pair-row">
+        <input type="text" class="pair-input" id="pair-input" placeholder="名前を入力…" oninput="onPairInput()" onkeydown="onPairKey(event)">
+        <button class="pair-add-btn" onclick="addPairFromInput()">追加</button>
+      </div>
+      <div class="suggest-row" id="pair-suggest"></div>
+    </div>
+
+    <!-- ── Time section ── -->
+    <div class="sec">
+      <div class="sec-hd"><span class="sec-lbl">🕐 時間帯</span></div>
+      <div class="time-row">
+        <button class="time-btn" id="t-am"   onclick="setTime('am')">午前</button>
+        <button class="time-btn" id="t-pm"   onclick="setTime('pm')">午後</button>
+        <button class="time-btn on" id="t-none" onclick="setTime('')">未選択</button>
+      </div>
+    </div>
+
+    <!-- ── Save ── -->
+    <div class="save-wrap">
+      <button class="save-btn" onclick="saveEntry()">✓ 記録する</button>
+    </div>
+
+    <!-- ── Existing entries ── -->
+    <div class="entry-list-lbl">この日の記録</div>
+    <div class="entry-cards" id="entry-cards"></div>
+    <div style="height:8px;"></div>
+
+  </div>
+</div>
+
+<!-- ── MODAL ── -->
+<div class="modal-bg" id="modal" onclick="onModalBgClick(event)">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-title">入力</div>
+    <input class="modal-in" id="modal-in" placeholder="">
+    <div class="modal-actions" id="modal-actions">
+      <button class="m-btn cancel" onclick="closeModal()">キャンセル</button>
+      <button class="m-btn ok" onclick="confirmModal()">確定</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST ── -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════
+   STORAGE KEYS
+═══════════════════════════════════════ */
+const K_ENTRIES = 'kl_entries_v2';
+const K_QA      = 'kl_qa_v2';
+const K_MEMO    = 'kl_memo_v2';
+const K_PAIRS   = 'kl_pairs_v2';
+
+const DEF_QA   = [150, 300, 500, 1000, 1500, 3000];
+const DEF_MEMO = ['ガソリン','昼食','夕食','交通費','駐車場','接待','コーヒー'];
+
+function load(k, def) {
+  try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; }
+  catch { return def; }
+}
+function save(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
+
+/* ═══════════════════════════════════════
+   UTIL
+═══════════════════════════════════════ */
+const _today = new Date();
+function todayStr() { return fmt(_today); }
+function fmt(d) {
+  return `${d.getFullYear()}-${S(d.getMonth()+1)}-${S(d.getDate())}`;
+}
+function S(n) { return String(n).padStart(2,'0'); }
+function yen(n) { return Number(n).toLocaleString('ja-JP'); }
+function dateLabel(s) {
+  const d = new Date(s + 'T00:00:00');
+  return `${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+/* ═══════════════════════════════════════
+   STATE
+═══════════════════════════════════════ */
+let calYear  = _today.getFullYear();
+let calMonth = _today.getMonth();
+let selDate  = todayStr();
+let amtStr   = '';
+let selTime  = '';
+let selPairs = [];
+let qaEdit   = false;
+let memoEdit = false;
+
+/* ═══════════════════════════════════════
+   CALENDAR
+═══════════════════════════════════════ */
+function renderCal() {
+  const M = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  document.getElementById('month-label').textContent = `${calYear}年 ${M[calMonth]}`;
+  const mt = monthTotal(calYear, calMonth);
+  document.getElementById('month-total').innerHTML = `<span class="yen">¥</span>${yen(mt)}`;
+
+  const grid = document.getElementById('day-grid');
+  grid.innerHTML = '';
+  const first = new Date(calYear, calMonth, 1);
+  const last  = new Date(calYear, calMonth+1, 0);
+  const ts    = todayStr();
+  const entries = load(K_ENTRIES, []);
+
+  // blank cells
+  for (let i = 0; i < first.getDay(); i++) {
+    const d = document.createElement('div');
+    d.className = 'day-cell empty'; grid.appendChild(d);
+  }
+  for (let day = 1; day <= last.getDate(); day++) {
+    const date = new Date(calYear, calMonth, day);
+    const ds   = fmt(date);
+    const tot  = entries.filter(e=>e.date===ds).reduce((s,e)=>s+e.amount,0);
+    const dow  = date.getDay();
+
+    const cell = document.createElement('div');
+    let cls = 'day-cell';
+    if (ds === ts)  cls += ' is-today';
+    if (tot > 0)    cls += ' has-data';
+    if (dow === 0)  cls += ' is-sun';
+    if (dow === 6)  cls += ' is-sat';
+    cell.className = cls;
+    cell.innerHTML = `<div class="day-num">${day}</div>`
+      + (tot > 0 ? `<div class="day-amt">¥${yen(tot)}</div>` : '');
+    cell.onclick = () => openEntry(ds);
+    grid.appendChild(cell);
+  }
+}
+
+function shiftMonth(d) {
+  calMonth += d;
+  if (calMonth < 0)  { calMonth = 11; calYear--; }
+  if (calMonth > 11) { calMonth = 0;  calYear++; }
+  renderCal();
+}
+
+function monthTotal(y, m) {
+  const prefix = `${y}-${S(m+1)}`;
+  return load(K_ENTRIES,[]).filter(e=>e.date.startsWith(prefix)).reduce((s,e)=>s+e.amount,0);
+}
+
+/* ═══════════════════════════════════════
+   ENTRY SCREEN
+═══════════════════════════════════════ */
+function openEntry(ds) {
+  selDate  = ds;
+  amtStr   = '';
+  selTime  = '';
+  selPairs = [];
+  qaEdit   = false;
+  memoEdit = false;
+
+  setDateUI(ds);
+  refreshAmt();
+  refreshDayTotal();
+  renderQA();
+  renderMemoChips();
+  renderPairTags();
+  renderEntryCards();
+  setTime('');
+  document.getElementById('memo-input').value = '';
+  document.getElementById('pair-input').value = '';
+  document.getElementById('pair-suggest').innerHTML = '';
+
+  document.getElementById('cal-screen').classList.add('slide-out');
+  document.getElementById('entry-screen').classList.remove('slide-right');
+  document.getElementById('entry-screen').scrollTop = 0;
+}
+
+function goBack() {
+  document.getElementById('entry-screen').classList.add('slide-right');
+  document.getElementById('cal-screen').classList.remove('slide-out');
+  renderCal();
+}
+
+function setDateUI(ds) {
+  document.getElementById('date-picker').value = ds;
+  document.getElementById('entry-h-date').textContent = dateLabel(ds);
+  const ts = todayStr();
+  const yd = fmt(new Date(Date.now()-86400000));
+  document.getElementById('btn-today').classList.toggle('active', ds === ts);
+  document.getElementById('btn-yesterday').classList.toggle('active', ds === yd);
+}
+
+function setDateQuick(which) {
+  const d = which === 'today' ? todayStr() : fmt(new Date(Date.now()-86400000));
+  selDate = d;
+  setDateUI(d);
+  refreshDayTotal();
+  renderEntryCards();
+}
+
+function onDateChange() {
+  const v = document.getElementById('date-picker').value;
+  if (!v) return;
+  selDate = v;
+  setDateUI(v);
+  refreshDayTotal();
+  renderEntryCards();
+}
+
+/* ── Amount ── */
+function refreshAmt() {
+  const el = document.getElementById('amt-display');
+  const n  = parseInt(amtStr, 10) || 0;
+  el.textContent = n ? yen(n) : '0';
+  el.classList.toggle('has-val', n > 0);
+}
+function np(v) {
+  if (amtStr.length >= 8) return;
+  if (amtStr === '0' || amtStr === '') amtStr = v;
+  else amtStr += v;
+  refreshAmt();
+}
+function npDel() { amtStr = amtStr.slice(0,-1); refreshAmt(); }
+
+/* ── Quick amounts ── */
+function renderQA() {
+  const row  = document.getElementById('qa-row');
+  const arr  = load(K_QA, DEF_QA);
+  const edit = qaEdit;
+  row.innerHTML = '';
+  arr.forEach((a, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'chip' + (edit ? ' edit-on' : '');
+    btn.textContent = edit ? `✎ ¥${yen(a)}` : `¥${yen(a)}`;
+    btn.onclick = () => {
+      if (edit) {
+        openModal(`金額を編集`, '金額（円）', String(a), v => {
+          const n = parseInt(v,10);
+          if (n > 0) { const ar = load(K_QA,DEF_QA); ar[i]=n; save(K_QA,ar); renderQA(); }
+        }, () => {
+          const ar = load(K_QA,DEF_QA); ar.splice(i,1); save(K_QA,ar); renderQA();
+        });
+      } else {
+        amtStr = String(a); refreshAmt();
+      }
+    };
+    row.appendChild(btn);
+  });
+  const addBtn = document.createElement('button');
+  addBtn.className = 'chip-add'; addBtn.textContent = '＋ 追加';
+  addBtn.onclick = () => openModal('金額を追加','金額（円）','', v => {
+    const n = parseInt(v,10);
+    if (n > 0) { const ar = load(K_QA,DEF_QA); ar.push(n); save(K_QA,ar); renderQA(); }
+  });
+  row.appendChild(addBtn);
+
+  const btn = document.getElementById('qa-edit-btn');
+  btn.textContent = edit ? '完了' : '編集';
+  btn.classList.toggle('on', edit);
+}
+function toggleQAEdit() { qaEdit = !qaEdit; renderQA(); }
+
+/* ── Memo chips ── */
+function renderMemoChips() {
+  const row  = document.getElementById('memo-chips');
+  const arr  = load(K_MEMO, DEF_MEMO);
+  const edit = memoEdit;
+  row.innerHTML = '';
+  arr.forEach((t,i) => {
+    const btn = document.createElement('button');
+    btn.className = 'memo-chip' + (edit ? ' edit-on' : '');
+    btn.textContent = edit ? `✎ ${t}` : t;
+    btn.onclick = () => {
+      if (edit) {
+        openModal('タグを編集','タグ名',t, v => {
+          if (v.trim()) { const ar=load(K_MEMO,DEF_MEMO); ar[i]=v.trim(); save(K_MEMO,ar); renderMemoChips(); }
+        }, () => { const ar=load(K_MEMO,DEF_MEMO); ar.splice(i,1); save(K_MEMO,ar); renderMemoChips(); });
+      } else {
+        const el = document.getElementById('memo-input');
+        el.value = el.value ? el.value + ' ' + t : t;
+      }
+    };
+    row.appendChild(btn);
+  });
+  const addBtn = document.createElement('button');
+  addBtn.className = 'memo-chip'; addBtn.style.borderStyle='dashed'; addBtn.style.color='var(--txt3)';
+  addBtn.textContent = '＋ 追加';
+  addBtn.onclick = () => openModal('タグを追加','タグ名','', v => {
+    if (v.trim()) { const ar=load(K_MEMO,DEF_MEMO); ar.push(v.trim()); save(K_MEMO,ar); renderMemoChips(); }
+  });
+  row.appendChild(addBtn);
+
+  const btn = document.getElementById('memo-edit-btn');
+  btn.textContent = edit ? '完了' : '編集';
+  btn.classList.toggle('on', edit);
+}
+function toggleMemoEdit() { memoEdit = !memoEdit; renderMemoChips(); }
+
+/* ── Pair ── */
+function renderPairTags() {
+  const c = document.getElementById('pair-tags');
+  c.innerHTML = '';
+  selPairs.forEach((n,i) => {
+    const t = document.createElement('div');
+    t.className = 'pair-tag';
+    t.innerHTML = `${n}<span class="x" onclick="removePair(${i})">×</span>`;
+    c.appendChild(t);
+  });
+}
+function removePair(i) { selPairs.splice(i,1); renderPairTags(); }
+function addPairFromInput() {
+  const el = document.getElementById('pair-input');
+  const nm = el.value.trim();
+  if (!nm) return;
+  if (!selPairs.includes(nm)) {
+    selPairs.push(nm);
+    const all = load(K_PAIRS,[]);
+    if (!all.includes(nm)) { all.push(nm); save(K_PAIRS,all); }
+  }
+  el.value = '';
+  renderPairTags();
+  document.getElementById('pair-suggest').innerHTML = '';
+}
+function onPairKey(e) { if (e.key === 'Enter') addPairFromInput(); }
+function onPairInput() {
+  const val = document.getElementById('pair-input').value.trim().toLowerCase();
+  const c   = document.getElementById('pair-suggest');
+  c.innerHTML = '';
+  if (!val) return;
+  load(K_PAIRS,[]).filter(p => p.toLowerCase().includes(val) && !selPairs.includes(p))
+    .slice(0,6).forEach(nm => {
+      const btn = document.createElement('button');
+      btn.className = 'suggest-chip'; btn.textContent = nm;
+      btn.onclick = () => {
+        selPairs.push(nm);
+        document.getElementById('pair-input').value = '';
+        c.innerHTML = '';
+        renderPairTags();
+      };
+      c.appendChild(btn);
+    });
+}
+
+/* ── Time ── */
+function setTime(v) {
+  selTime = v;
+  applyTimeBtns();
+}
+function applyTimeBtns() {
+  const cur = selTime;
+  document.getElementById('t-am').classList.toggle('on',   cur === 'am');
+  document.getElementById('t-pm').classList.toggle('on',   cur === 'pm');
+  document.getElementById('t-none').classList.toggle('on', cur === '');
+}
+
+/* ── Day total ── */
+function refreshDayTotal() {
+  const t = load(K_ENTRIES,[]).filter(e=>e.date===selDate).reduce((s,e)=>s+e.amount,0);
+  document.getElementById('day-total').innerHTML = `<span class="yen">¥</span>${yen(t)}`;
+}
+
+/* ── Save ── */
+function saveEntry() {
+  const amount = parseInt(amtStr, 10);
+  if (!amount || amount <= 0) { showToast('⚠ 金額を入力してください'); return; }
+
+  const entries = load(K_ENTRIES,[]);
+  entries.push({
+    id: Date.now() + Math.random(),
+    date: selDate,
+    amount,
+    memo:  document.getElementById('memo-input').value.trim(),
+    pairs: [...selPairs],
+    time:  selTime,
+    at:    new Date().toISOString()
+  });
+  save(K_ENTRIES, entries);
+
+  showToast('✓ 記録しました！');
+  setTimeout(() => goBack(), 500);
+}
+
+/* ── Entry cards ── */
+function renderEntryCards() {
+  const c = document.getElementById('entry-cards');
+  const list = load(K_ENTRIES,[]).filter(e=>e.date===selDate).reverse();
+  if (!list.length) {
+    c.innerHTML = '<div class="no-entries">まだ記録がありません</div>'; return;
+  }
+  c.innerHTML = '';
+  list.forEach(e => {
+    const card = document.createElement('div');
+    card.className = 'e-card';
+    const tl = e.time==='am'?'午前':e.time==='pm'?'午後':'';
+    const pl = e.pairs&&e.pairs.length ? `👥 ${e.pairs.join('・')}` : '単独';
+    const meta = [tl, pl].filter(Boolean).join('　');
+    card.innerHTML = `
+      <div class="e-card-body">
+        <div class="e-card-amt">¥${yen(e.amount)}</div>
+        <div class="e-card-meta">${meta}</div>
+        ${e.memo ? `<div class="e-card-memo">${e.memo}</div>` : ''}
+      </div>
+      <button class="e-del" onclick="delEntry('${e.id}')">×</button>`;
+    c.appendChild(card);
+  });
+}
+function delEntry(id) {
+  if (!confirm('この記録を削除しますか？')) return;
+  save(K_ENTRIES, load(K_ENTRIES,[]).filter(e=>String(e.id)!==String(id)));
+  refreshDayTotal();
+  renderEntryCards();
+}
+
+/* ═══════════════════════════════════════
+   CSV EXPORT
+═══════════════════════════════════════ */
+function exportCSV() {
+  const entries = load(K_ENTRIES,[]).sort((a,b)=>a.date.localeCompare(b.date));
+  const hdr = ['日付','金額','時間帯','同行者','メモ','記録日時'];
+  const rows = entries.map(e => [
+    e.date, e.amount,
+    e.time==='am'?'午前':e.time==='pm'?'午後':'',
+    (e.pairs&&e.pairs.length)?e.pairs.join('・'):'単独',
+    e.memo||'', e.at||''
+  ]);
+  const csv = [hdr,...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `expense_${todayStr()}.csv`; a.click();
+  URL.revokeObjectURL(url);
+  showToast('⬇ CSVをダウンロードしました');
+}
+
+/* ═══════════════════════════════════════
+   MODAL
+═══════════════════════════════════════ */
+let _mOk, _mDel;
+
+function openModal(title, ph, def, onOk, onDel) {
+  _mOk = onOk; _mDel = onDel;
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-in').placeholder = ph;
+  document.getElementById('modal-in').value = def||'';
+
+  const actions = document.getElementById('modal-actions');
+  actions.innerHTML = '';
+  if (onDel) {
+    const db = document.createElement('button');
+    db.className = 'm-btn danger'; db.textContent = '削除';
+    db.onclick = () => { closeModal(); _mDel(); };
+    actions.appendChild(db);
+  }
+  const cb = document.createElement('button');
+  cb.className = 'm-btn cancel'; cb.textContent = 'キャンセル';
+  cb.onclick = closeModal;
+  const ob = document.createElement('button');
+  ob.className = 'm-btn ok'; ob.textContent = '確定';
+  ob.onclick = confirmModal;
+  actions.appendChild(cb); actions.appendChild(ob);
+
+  document.getElementById('modal').classList.add('open');
+  setTimeout(() => document.getElementById('modal-in').focus(), 300);
+}
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+function confirmModal() {
+  const v = document.getElementById('modal-in').value;
+  closeModal();
+  if (_mOk) _mOk(v);
+}
+function onModalBgClick(e) { if (e.target.id==='modal') closeModal(); }
+
+/* ═══════════════════════════════════════
+   TOAST
+═══════════════════════════════════════ */
+let _toastT;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/* ═══════════════════════════════════════
+   INIT
+═══════════════════════════════════════ */
+renderCal();
+</script>
+</body>
+</html>
